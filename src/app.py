@@ -21,7 +21,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
-from src.services import coinos
 from src import api
 
 def start():
