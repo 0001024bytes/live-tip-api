@@ -7,3 +7,6 @@ def calculate_percentage(x: float, y: float) -> float:
         y (float): Percentage value.
     """
     return (x * y) / 100.0
+
+def sats_to_msats(x: int):
+    return round(x * 1000)

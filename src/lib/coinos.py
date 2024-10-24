@@ -45,10 +45,12 @@ class Coinos:
         url = f"{BASE_URL}/invoice/{hash}"
         return self.make_request("GET", url)
 
-    def send_lightning_payment(self, payreq):
+    def send_lightning_payment(self, payreq: str, amount: int, maxfee: int = 10):
         url = f"{BASE_URL}/payments"
         payload = {
-            "payreq": payreq
+            "payreq": payreq,
+            "amount": amount,
+            "maxfee": maxfee
         }
         return self.make_request("POST", url, payload)
 
@@ -93,7 +95,7 @@ class Coinos:
             response = requests.get(url, headers=headers, params=params)
         else:
             response = requests.post(url, headers=headers, json=payload)
-
+        
         response.raise_for_status()
         if response.text:
             return response.json()
