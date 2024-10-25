@@ -8,6 +8,8 @@ from src.configs import (
     API_ALLOW_ORIGINS,
     API_HOST,
     API_PORT,
+    MAX_VALUE,
+    MIN_VALUE,
     PRODUCTION,
     COINOS_WEBHOOK_KEY,
     COINOS_WEBHOOK_URL,
@@ -35,6 +37,15 @@ api.add_middleware(
     allow_headers=["*"],
 )
 
+@api.get("/api/v1/getinfo")
+def get_info(lightning_address: str = Query("")):
+    lnurlp_info = LightningAddress.get_lnurlp_info(lightning_address)
+    return {
+        "comment_allowed": int(lnurlp_info.get("commentAllowed", 0)), 
+        "min_value": MIN_VALUE, 
+        "max_value": MAX_VALUE
+    }
+
 @api.post("/api/v1/address/{id}")
 async def create_address(
     id: str,
@@ -48,9 +59,7 @@ async def create_address(
         raise HTTPException(status_code=400, detail="Payment type is invalid.")
 
     lnurlp_info = LightningAddress.get_lnurlp_info(lightning_address)
-    if len(message) > lnurlp_info.get("commentAllowed", 0):
-        raise ValueError("The comment size is larger than allowed.")
-
+    message = message[:int(lnurlp_info.get("commentAllowed", 0))]
     price_data = bitfinex.get_price(ticket="btcusd")
     price = float(price_data["SELL"])
     amount_btc = amount / price

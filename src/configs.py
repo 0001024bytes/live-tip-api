@@ -31,3 +31,7 @@ COINOS_USERNAME = getenv("COINOS_USERNAME")
 COINOS_PASSWORD = getenv("COINOS_PASSWORD")
 COINOS_WEBHOOK_URL = getenv("COINOS_WEBHOOK_URL", f"http://localhost:{API_PORT}/api/v1/coinos/webhook")
 COINOS_WEBHOOK_KEY = getenv("COINOS_WEBHOOK_KEY", token_hex(32))
+
+# Donation configuration
+MIN_VALUE = float(getenv("MIN_VALUE", 15))
+MAX_VALUE = float(getenv("MAX_VALUE", 1))
