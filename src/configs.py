@@ -38,4 +38,6 @@ MAX_VALUE = float(getenv("MAX_VALUE", 1))
 
 # Liquid configuration
 LIQUID_URL = getenv("LIQUID_URL", "http://localhost:4023")
-LIQUID_KEY = getenv("LIQUID_KEY")
+LIQUID_KEY = getenv("LIQUID_KEY", "")
+LIQUID_WEBHOOK_URL = getenv("LIQUID_WEBHOOK_URL", f"http://localhost:{API_PORT}/api/v1/liquid/webhook")
+LIQUID_WEBHOOK_KEY = getenv("LIQUID_WEBHOOK_KEY", token_hex(32))

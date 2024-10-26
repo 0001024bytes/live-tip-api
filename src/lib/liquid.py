@@ -19,8 +19,8 @@ class Liquid:
         )
         return response.json()
 
-    def get_new_address(self, id: str, label: str = "") -> dict:
-        return self.call("POST", f"/api/v1/liquid/new-address", {"id": id, "label": label}) 
+    def get_new_address(self, id: str, label="", webhook_url=None, webhook_key=None) -> dict:
+        return self.call("POST", f"/api/v1/liquid/new-address", {"id": id, "label": label, "webhook_url": webhook_url, "webhook_key": webhook_key}) 
 
     def get_address(self, id: str):
         return self.call("GET", f"/api/v1/liquid/address/{id}")
