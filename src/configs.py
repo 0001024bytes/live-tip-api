@@ -35,3 +35,7 @@ COINOS_WEBHOOK_KEY = getenv("COINOS_WEBHOOK_KEY", token_hex(32))
 # Donation configuration
 MIN_VALUE = float(getenv("MIN_VALUE", 15))
 MAX_VALUE = float(getenv("MAX_VALUE", 1))
+
+# Liquid configuration
+LIQUID_URL = getenv("LIQUID_URL", "http://localhost:4023")
+LIQUID_KEY = getenv("LIQUID_KEY")

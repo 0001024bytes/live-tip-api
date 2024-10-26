@@ -1,5 +1,7 @@
 from fastapi.middleware.cors import CORSMiddleware
+from src.services.bitpreco import bitpreco
 from src.services.bitfinex import bitfinex
+from src.services.liquid import liquid
 from src.services.coinos import coinos
 from src.services.redis import redis
 from src.utils.helpers import calculate_percentage, sats_to_msats
@@ -54,8 +56,7 @@ async def create_address(
     payment_type: str = Query("lightning", description="Payment type. E.g., lightning or liquid."),
     message: str = Query("", description="Optional message.")
 ):
-    valid_payment_types = ["lightning", "liquid"]
-    if payment_type not in valid_payment_types:
+    if payment_type not in ["lightning", "liquid", "pix"]:
         raise HTTPException(status_code=400, detail="Payment type is invalid.")
 
     lnurlp_info = LightningAddress.get_lnurlp_info(lightning_address)
@@ -64,7 +65,6 @@ async def create_address(
     price = float(price_data["SELL"])
     amount_btc = amount / price
     amount_sat = round(amount_btc * pow(10, 8))
-
     if lnurlp_info.get("minSendable", 0) > amount_sat * 1000:
         raise ValueError("Minimum value is greater than amount.")
 
@@ -72,22 +72,34 @@ async def create_address(
         raise ValueError("The amount value is greater than the maximum value.")
 
     txid = uuid4()
-    url = f"{COINOS_WEBHOOK_URL}/{txid}/{id}/{payment_type}?message={message}&lightning_address={lightning_address}"
-    invoice = coinos.create_invoice(
-        amount_sat,
-        payment_type.lower(),
-        url,
-        COINOS_WEBHOOK_KEY
-    )
-    if payment_type == "liquid":
-        match = re.search(r'liquidnetwork:([^?]+)', invoice["text"])
-        if match:
-            address = match.group(1)
-            invoice["text"] = f"liquidnetwork:{address}?amount={amount_btc:.8f}&assetid=6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
-    elif payment_type == "lightning":
-        invoice["text"] = f"lightning:{invoice['text']}"
+    address = None
+    if payment_type in ["lightning", "liquid"]:
+        url = f"{COINOS_WEBHOOK_URL}/{txid}/{id}/{payment_type}?message={message}&lightning_address={lightning_address}"
+        invoice = coinos.create_invoice(
+            amount_sat,
+            payment_type.lower(),
+            url,
+            COINOS_WEBHOOK_KEY
+        )
+        if payment_type == "liquid":
+            match = re.search(r'liquidnetwork:([^?]+)', invoice["text"])
+            if match:
+                address = match.group(1)
+                invoice["text"] = f"liquidnetwork:{address}?amount={amount_btc:.8f}&assetid=6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
+        elif payment_type == "lightning":
+            invoice["text"] = f"lightning:{invoice['text']}"
+        
+        address = invoice["text"]
+    elif payment_type == "pix":
+        amount_brl = amount * bitpreco.get_price("usdt-brl")["BUY"]
+        liquid_address_assets = liquid.get_new_address(
+            str(txid), label=lightning_address)["address"]
 
-    return {"txid": txid, "address": invoice["text"]}
+        address = f"liquidnetwork:{liquid_address_assets}?amount={amount_brl:.8f}&assetid=02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189"
+    else:
+        raise NotImplemented
+
+    return {"txid": txid, "address": address}
 
 @api.get("/api/v1/payment/{txid}/paid")
 def get_payment_paid(txid: str):
