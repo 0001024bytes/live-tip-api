@@ -10,6 +10,8 @@ from src.configs import (
     API_ALLOW_ORIGINS,
     API_HOST,
     API_PORT,
+    LIQUID_WEBHOOK_KEY,
+    LIQUID_WEBHOOK_URL,
     MAX_VALUE,
     MIN_VALUE,
     PRODUCTION,
@@ -17,7 +19,7 @@ from src.configs import (
     COINOS_WEBHOOK_URL,
 )
 from src.lib.lnurl import LightningAddress
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from uuid import uuid4
 
 import uvicorn
@@ -93,7 +95,11 @@ async def create_address(
     elif payment_type == "pix":
         amount_brl = amount * bitpreco.get_price("usdt-brl")["BUY"]
         liquid_address_assets = liquid.get_new_address(
-            str(txid), label=lightning_address)["address"]
+            str(txid), 
+            label=lightning_address, 
+            webhook_url=f"{LIQUID_WEBHOOK_URL}/{txid}/{id}/{payment_type}?message={message}&lightning_address={lightning_address}",
+            webhook_key=LIQUID_WEBHOOK_KEY
+        )["address"]
 
         address = f"liquidnetwork:{liquid_address_assets}?amount={amount_brl:.8f}&assetid=02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189"
     else:
@@ -105,6 +111,59 @@ async def create_address(
 def get_payment_paid(txid: str):
     tx = redis.redis_get(f"tx.{txid}")
     return {"paid": tx.get("paid", False)}
+
+@api.post("/api/v1/liquid/webhook/{txid}/{id}/{payment_type}")
+def liquid_webhook_payment(
+        txid: str, 
+        id: str, 
+        payment_type: str, 
+        data: dict,
+        request: Request,
+        lightning_address: str = Query("", description="Optional lightning address."),
+        message: str = Query("", description="Optional message.")
+    ):
+    if (LIQUID_WEBHOOK_KEY != \
+            request.headers.get("X-WEBHOOK-KEY", "")):
+        raise HTTPException(401)
+
+    if data["data"]["asset_id"] != "02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189":
+        raise HTTPException(400)
+
+    tx_status = redis.redis_get(f"tx.{txid}")
+    if tx_status and tx_status.get("paid", False):
+        raise HTTPException(400)
+
+    data["id"] = id
+    data["txid"] = txid
+    data["payment_type"] = payment_type
+    data["message"] = message
+    data["paid"] = data.get("confirmed", False)
+    data["lightning_address"] = lightning_address
+    redis.redis_set(f"tx.{txid}", data)
+
+    amount_depix = data["data"]["asset_value"] / pow(10, 8)
+    amount_btc = amount_depix / bitpreco.get_price("btc-brl")["SELL"]
+    amount_sats = round(amount_btc * pow(10, 8))
+    amount_sats_discount = amount_sats 
+    amount_sats_discount-= round(calculate_percentage(amount_sats_discount, 5))
+    amount_sats_discount = abs(amount_sats_discount)
+    maxfee = abs(amount_sats - amount_sats_discount)
+    if maxfee < 1:
+        maxfee = 1
+
+    payreq = LightningAddress.fetch_invoice(
+        lightning_address, 
+        amount=sats_to_msats(amount_sats_discount), 
+        comment=message
+    ).get("pr")
+    if not payreq:
+        raise HTTPException(500, "Unable to generate an Invoice from Lightning Address.")
+
+    coinos.send_lightning_payment(
+        payreq=payreq, 
+        amount=amount_sats_discount, 
+        maxfee=maxfee
+    )
 
 @api.post("/api/v1/coinos/webhook/{txid}/{id}/{payment_type}")
 def coinos_webhook_payment(
@@ -119,6 +178,10 @@ def coinos_webhook_payment(
     if data["secret"] != COINOS_WEBHOOK_KEY:
         raise HTTPException(400)
 
+    tx_status = redis.redis_get(f"tx.{txid}")
+    if tx_status and tx_status.get("paid", False):
+        raise HTTPException(400)
+
     data["id"] = id
     data["txid"] = txid
     data["payment_type"] = payment_type
@@ -131,7 +194,8 @@ def coinos_webhook_payment(
         amount_sats = data["amount"]
         amount_sats_discount = amount_sats 
         amount_sats_discount-= round(calculate_percentage(amount_sats_discount, 1))
-        maxfee = (amount_sats - amount_sats_discount)
+        amount_sats_discount = abs(amount_sats_discount)
+        maxfee = abs(amount_sats - amount_sats_discount)
         if maxfee < 1:
             maxfee = 1
 
