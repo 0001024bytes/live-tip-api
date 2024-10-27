@@ -17,6 +17,7 @@ class Depix:
             json=data,
             headers={ "X-API-KEY": self.key }
         )
+        response.raise_for_status()
         return response.json()
 
     def create_qrcode(self, amount: float, address: str) -> dict:
