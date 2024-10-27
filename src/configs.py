@@ -41,3 +41,7 @@ LIQUID_URL = getenv("LIQUID_URL", "http://localhost:4023")
 LIQUID_KEY = getenv("LIQUID_KEY", "")
 LIQUID_WEBHOOK_URL = getenv("LIQUID_WEBHOOK_URL", f"http://localhost:{API_PORT}/api/v1/liquid/webhook")
 LIQUID_WEBHOOK_KEY = getenv("LIQUID_WEBHOOK_KEY", token_hex(32))
+
+# Depix configuration
+DEPIX_URL = getenv("DEPIX_URL", "http://localhost:8080")
+DEPIX_KEY = getenv("DEPIX_KEY", "")

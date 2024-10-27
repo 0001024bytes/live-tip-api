@@ -4,6 +4,7 @@ from src.services.bitfinex import bitfinex
 from src.services.liquid import liquid
 from src.services.coinos import coinos
 from src.services.redis import redis
+from src.services.depix import depix
 from src.utils.helpers import calculate_percentage, sats_to_msats
 from src.api.schemas import CoinosWebhookSchema
 from src.configs import (
@@ -93,7 +94,7 @@ async def create_address(
         
         address = invoice["text"]
     elif payment_type == "pix":
-        amount_brl = amount * bitpreco.get_price("usdt-brl")["BUY"]
+        amount_brl = round(amount * bitpreco.get_price("usdt-brl")["BUY"])
         liquid_address_assets = liquid.get_new_address(
             str(txid), 
             label=lightning_address, 
@@ -101,7 +102,10 @@ async def create_address(
             webhook_key=LIQUID_WEBHOOK_KEY
         )["address"]
 
-        address = f"liquidnetwork:{liquid_address_assets}?amount={amount_brl:.8f}&assetid=02f22f8d9c76ab41661a2729e4752e2c5d1a263012141b86ea98af5472df5189"
+        address = depix.create_qrcode(
+            amount=amount_brl, 
+            address=liquid_address_assets
+        ).get("qrcode")
     else:
         raise NotImplemented
 
