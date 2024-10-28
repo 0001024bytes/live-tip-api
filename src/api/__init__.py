@@ -141,7 +141,7 @@ def liquid_webhook_payment(
     data["txid"] = txid
     data["payment_type"] = payment_type
     data["message"] = message
-    data["paid"] = data.get("confirmed", False)
+    data["paid"] = True
     data["lightning_address"] = lightning_address
     redis.redis_set(f"tx.{txid}", data)
 
